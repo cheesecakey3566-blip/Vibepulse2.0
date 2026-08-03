@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VibePulse</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --card-bg: #18181c;
+      --accent: #e1306c;
+      --accent-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+      --text: #f5f5f7;
+      --text-sub: #a1a1aa;
+      --border: #27272a;
+      --verified: #3897f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding-bottom: 70px; display: flex; justify-content: center; }
+
+    .app-container { width: 100%; max-width: 480px; min-height: 100vh; background: var(--bg); position: relative; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+    
+    /* Header */
+    header { position: sticky; top: 0; background: rgba(15, 15, 18, 0.9); backdrop-filter: blur(10px); z-index: 100; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    header h1 { font-size: 1.4rem; font-weight: 800; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    
+    /* Navigation Bar */
+    nav { position: fixed; bottom: 0; width: 100%; max-width: 480px; background: #121215; border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 100; }
+    nav button { background: none; border: none; color: var(--text-sub); font-size: 1.2rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    nav button.active { color: var(--text); }
+    nav button span { font-size: 0.65rem; }
+
+    /* Auth View */
+    .auth-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; justify-content: center; padding: 24px; }
+    .auth-card { background: var(--card-bg); padding: 24px; border-radius: 16px; border: 1px solid var(--border); }
+    .auth-card h2 { margin-bottom: 16px; text-align: center; }
+    
+    /* Views */
+    .view { display: none; padding: 16px; }
+    .view.active { display: block; }
+
+    /* Inputs & Buttons */
+    input, textarea, select { width: 100%; background: #222226; border: 1px solid var(--border); color: #fff; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; outline: none; }
+    button.btn-primary { width: 100%; background: var(--accent-gradient); border: none; color: white; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    button.btn-secondary { background: var(--border); border: none; color: white; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+
+    /* Badges */
+    .verified-badge { color: var(--verified); display: inline-block; margin-left: 4px; font-size: 0.9em; }
+
+    /* Post Card */
+    .post-card { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden; }
+    .post-header { padding: 12px; display: flex; align-items: center; justify-content: space-between; }
+    .post-user { display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #333; }
+    .content-id-badge { font-size: 0.7rem; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; color: var(--text-sub); font-family: monospace; }
+    .post-media { width: 100%; max-height: 400px; object-fit: cover; background: #000; display: block; }
+    .post-actions { padding: 10px 12px; display: flex; gap: 16px; align-items: center; }
+    .post-body { padding: 0 12px 12px 12px; font-size: 0.9rem; }
+    .post-audio { width: 100%; margin-top: 8px; height: 32px; }
+
+    /* Profile View */
+    .profile-header { text-align: center; padding: 20px 0; border-bottom: 1px solid var(--border); }
+    .profile-avatar { width: 80px; height: 80px; border-radius: 50%; margin-bottom: 10px; object-fit: cover; border: 2px solid var(--accent); }
+    .profile-stats { display: flex; justify-content: center; gap: 24px; margin: 12px 0; font-size: 0.9rem; }
+
+    /* Live Stream View */
+    #live-video { width: 100%; border-radius: 12px; background: #000; transform: scaleX(-1); }
+    .live-indicator { position: absolute; top: 20px; left: 20px; background: red; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Grid Layouts */
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .grid-item { aspect-ratio: 1; background: #222; overflow: hidden; }
+    .grid-item img, .grid-item video { width: 100%; height: 100%; object-fit: cover; }
+
+    .comment-item { font-size: 0.85rem; padding: 4px 0; color: var(--text-sub); }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header>
+      <h1>VibePulse</h1>
+      <span id="header-user" style="font-size: 0.8rem; color: var(--text-sub);">Guest</span>
+    </header>
+
+    <div id="auth-screen" class="auth-overlay">
+      <form class="auth-card" onsubmit="handleAuth(event)">
+        <h2>Welcome to VibePulse</h2>
+        <input type="text" id="auth-username" placeholder="Username" required>
+        <input type="password" id="auth-password" placeholder="Password" required>
+        <textarea id="auth-bio" placeholder="Profile Bio" rows="2"></textarea>
+        <label style="font-size: 0.8rem; color: var(--text-sub);">Profile Picture:</label>
+        <input type="file" id="auth-avatar" accept="image/*">
+        <button type="submit" class="btn-primary">Log In / Register</button>
+      </form>
+    </div>
+
+    <div id="feed-view" class="view active">
+      <div id="feed-container"></div>
+    </div>
+
+    <div id="explore-view" class="view">
+      <h3 style="margin-bottom: 12px;">Explore</h3>
+      <div id="explore-grid" class="grid"></div>
+    </div>
+
+    <div id="create-view" class="view">
+      <h3>Create Post</h3>
+      <br>
+      <label>Select Photo or Video:</label>
+      <input type="file" id="post-file" accept="image/*,video/*">
+      
+      <label>Caption:</label>
+      <textarea id="post-caption" placeholder="Write a caption..."></textarea>
+      
+      <label>Optional Background Music Track:</label>
+      <input type="file" id="post-audio" accept="audio/*">
+      
+      <button class="btn-primary" onclick="publishPost()">Publish Post</button>
+    </div>
+
+    <div id="live-view" class="view">
+      <h3>Live Stream Studio</h3>
+      <div style="position: relative; margin: 12px 0;">
+        <span class="live-indicator">LIVE</span>
+        <video id="live-video" autoplay playsinline muted></video>
+      </div>
+      <label>Livestream Background Music:</label>
+      <input type="file" id="live-audio-file" accept="audio/*" onchange="playLiveAudio(event)">
+      <audio id="live-audio-player" controls style="width: 100%; margin-top: 8px;"></audio>
+      <br><br>
+      <button class="btn-primary" onclick="toggleCamera()">Start / Stop Camera</button>
+    </div>
+
+    <div id="notifications-view" class="view">
+      <h3>Notifications</h3>
+      <br>
+      <div id="notifications-list"></div>
+    </div>
+
+    <div id="profile-view" class="view">
+      <div class="profile-header">
+        <img id="p-avatar" class="profile-avatar" src="" alt="Avatar">
+        <h2 id="p-username">Username <span id="p-badge"></span></h2>
+        <p id="p-bio" style="color: var(--text-sub); font-size: 0.9rem; margin-top: 4px;"></p>
+        
+        <div class="profile-stats">
+          <div><strong id="p-post-count">0</strong><br><span style="color:var(--text-sub)">Posts</span></div>
+          <div><strong id="p-followers">0</strong><br><span style="color:var(--text-sub)">Followers</span></div>
+        </div>
+
+        <button id="buy-verify-btn" class="btn-secondary" onclick="buyVerification()">Buy Verification ($2)</button>
+        <button class="btn-secondary" onclick="addFollowerSim()">Simulate +10 Followers</button>
+      </div>
+      <h4 style="margin: 16px 0 8px 0;">My Posts</h4>
+      <div id="profile-grid" class="grid"></div>
+    </div>
+
+    <nav>
+      <button onclick="switchView('feed-view', this)" class="active">🏠<span>Feed</span></button>
+      <button onclick="switchView('explore-view', this)">🔍<span>Explore</span></button>
+      <button onclick="switchView('create-view', this)">➕<span>Create</span></button>
+      <button onclick="switchView('live-view', this)">🎥<span>Live</span></button>
+      <button onclick="switchView('notifications-view', this)">🔔<span>Alerts</span></button>
+      <button onclick="switchView('profile-view', this)">👤<span>Profile</span></button>
+    </nav>
+  </div>
+
+  <script>
+    /* Global Application State & Storage */
+    let currentUser = null;
+    let cameraStream = null;
+    let db = null;
+
+    // Paste your actual Stripe Payment Link here when ready:
+    const STRIPE_LINK = "https://buy.stripe.com/YOUR_STRIPE_LINK_HERE";
+
+    // IndexedDB Setup with Safe Initialization
+    const dbReq = indexedDB.open("VibePulseDB", 1);
+    dbReq.onupgradeneeded = (e) => {
+      let database = e.target.result;
+      if (!database.objectStoreNames.contains("posts")) {
+        database.createObjectStore("posts", { keyPath: "id" });
+      }
+    };
+    dbReq.onsuccess = (e) => { 
+      db = e.target.result; 
+      renderFeed(); 
+      if (currentUser) updateProfileView();
+    };
+
+    // Initialize Demo Creator Account
+    function initAccounts() {
+      try {
+        let users = JSON.parse(localStorage.getItem('vp_users') || '{}');
+        if (!users['owner']) {
+          users['owner'] = {
+            username: 'owner',
+            password: '123',
+            bio: 'Official Creator Account',
+            avatar: 'https://via.placeholder.com/150',
+            verified: true,
+            followers: 12500
+          };
+          localStorage.setItem('vp_users', JSON.stringify(users));
+        }
+      } catch(err) {
+        console.error("Storage error:", err);
+      }
+    }
+    initAccounts();
+
+    /* Auth System */
+    function handleAuth(e) {
+      if (e && e.preventDefault) e.preventDefault();
+
+      const u = document.getElementById('auth-username').value.trim();
+      const p = document.getElementById('auth-password').value.trim();
+      const bio = document.getElementById('auth-bio').value.trim();
+      const avatarFile = document.getElementById('auth-avatar').files[0];
+
+      if (!u || !p) return alert("Please enter both a username and password!");
+
+      let users = {};
+      try {
+        users = JSON.parse(localStorage.getItem('vp_users') || '{}');
+      } catch(err) {
+        users = {};
+      }
+
+      if (users[u]) {
+        if (users[u].password !== p) return alert("Incorrect password!");
+        currentUser = users[u];
+        completeLogin();
+      } else {
+        const processRegistration = (avatarData) => {
+          currentUser = {
+            username: u,
+            password: p,
+            bio: bio || "Hey there! I am using VibePulse.",
+            avatar: avatarData || "https://via.placeholder.com/150",
+            verified: u === 'owner',
+            followers: 0
+          };
+          users[u] = currentUser;
+          localStorage.setItem('vp_users', JSON.stringify(users));
+          completeLogin();
+        };
+
+        if (avatarFile) {
+          const r = new FileReader();
+          r.onload = () => processRegistration(r.result);
+          r.onerror = () => processRegistration(null);
+          r.readAsDataURL(avatarFile);
+        } else {
+          processRegistration(null);
+        }
+      }
+    }
+
+    function completeLogin() {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('header-user').innerText = `@${currentUser.username}`;
+      updateProfileView();
+      renderFeed();
+      checkForSuccessfulPayment();
+    }
+
+    /* Verification System Logic */
+    function checkVerificationStatus() {
+      if (!currentUser) return;
+      if (currentUser.followers >= 50 || currentUser.verified) {
+        currentUser.verified = true;
+      }
+      try {
+        let users = JSON.parse(localStorage.getItem('vp_users') || '{}');
+        users[currentUser.username] = currentUser;
+        localStorage.setItem('vp_users', JSON.stringify(users));
+      } catch(err) {}
+    }
+
+    function buyVerification() {
+      if (!currentUser) return alert("Please log in first!");
+      
+      if (STRIPE_LINK.includes("YOUR_STRIPE_LINK_HERE")) {
+        if (confirm("Simulate $2.00 Verification Purchase?")) {
+          currentUser.verified = true;
+          checkVerificationStatus();
+          updateProfileView();
+          alert("Verification Badge Unlocked!");
+        }
+      } else {
+        window.location.href = STRIPE_LINK;
+      }
+    }
+
+    function checkForSuccessfulPayment() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('payment') === 'success') {
+        if (currentUser) {
+          currentUser.verified = true;
+          checkVerificationStatus();
+          updateProfileView();
+          alert("🎉 Payment received! Your profile now has the official verified badge!");
+        } else {
+          alert("🎉 Payment received! Please log in to claim your badge.");
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
+    function addFollowerSim() {
+      currentUser.followers += 10;
+      checkVerificationStatus();
+      updateProfileView();
+    }
+
+    /* Tab Switching */
+    function switchView(viewId, btn) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+      if (btn) btn.classList.add('active');
+
+      if (viewId === 'explore-view') renderExplore();
+      if (viewId === 'profile-view') updateProfileView();
+      if (viewId === 'notifications-view') renderNotifications();
+    }
+
+    /* Media Upload & Unique Content ID System */
+    function publishPost() {
+      if (!currentUser) return alert("Please log in first!");
+      const file = document.getElementById('post-file').files[0];
+      const caption = document.getElementById('post-caption').value;
+      const audioFile = document.getElementById('post-audio').files[0];
+
+      if (!file) return alert("Please select a photo or video!");
+
+      const contentId = "CID-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const mediaData = e.target.result;
+        
+        const saveAndFinish = (audioData) => {
+          const newPost = {
+            id: Date.now(),
+            contentId: contentId,
+            author: currentUser.username,
+            authorVerified: currentUser.verified,
+            authorAvatar: currentUser.avatar,
+            caption: caption,
+            media: mediaData,
+            type: file.type.startsWith('video') ? 'video' : 'image',
+            audio: audioData || null,
+            likes: [],
+            comments: []
+          };
+
+          if (!db) return alert("Database is still initializing, please try again in a moment.");
+          const tx = db.transaction("posts", "readwrite");
+          tx.objectStore("posts").add(newPost);
+          tx.oncomplete = () => {
+            alert(`Post Published! Unique Content ID: #${contentId}`);
+            document.getElementById('post-file').value = '';
+            document.getElementById('post-caption').value = '';
+            document.getElementById('post-audio').value = '';
+            switchView('feed-view');
+            renderFeed();
+          };
+        };
+
+        if (audioFile) {
+          const aReader = new FileReader();
+          aReader.onload = (ae) => saveAndFinish(ae.target.result);
+          aReader.readAsDataURL(audioFile);
+        } else {
+          saveAndFinish(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /* Feed & Post Renderers */
+    function renderFeed() {
+      if (!db) return;
+      const tx = db.transaction("posts", "readonly");
+      const req = tx.objectStore("posts").getAll();
+      req.onsuccess = () => {
+        const posts = req.result.reverse();
+        const container = document.getElementById('feed-container');
+        container.innerHTML = posts.length === 0 ? '<p style="text-align:center; padding: 20px; color: var(--text-sub);">No posts yet. Be the first to post!</p>' : '';
+        
+        posts.forEach(post => {
+          const card = document.createElement('div');
+          card.className = 'post-card';
+          card.innerHTML = `
+            <div class="post-header">
+              <div class="post-user">
+                <img src="${post.authorAvatar}" class="avatar">
+                <div>
+                  <strong>${post.author}</strong>
+                  ${post.authorVerified ? '<span class="verified-badge">✔</span>' : ''}
+                </div>
+              </div>
+              <span class="content-id-badge">#${post.contentId}</span>
+            </div>
+            ${post.type === 'video' 
+              ? `<video src="${post.media}" class="post-media" controls></video>` 
+              : `<img src="${post.media}" class="post-media">`}
+            ${post.audio ? `<audio src="${post.audio}" controls class="post-audio"></audio>` : ''}
+            <div class="post-actions">
+              <button class="btn-secondary" onclick="likePost(${post.id})">❤️ ${post.likes.length}</button>
+            </div>
+            <div class="post-body">
+              <p><strong>${post.author}:</strong> ${post.caption}</p>
+              <div class="comments-section" id="comments-${post.id}">
+                ${post.comments.map(c => `<div class="comment-item"><strong>${c.user}:</strong> ${c.text}</div>`).join('')}
+              </div>
+              <div style="display:flex; gap:6px; margin-top:8px;">
+                <input type="text" id="input-${post.id}" placeholder="Add a feedback/comment..." style="margin:0; font-size:0.8rem;">
+                <button class="btn-secondary" onclick="addComment(${post.id})">Send</button>
+              </div>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      };
+    }
+
+    /* Likes & Feedback Logic */
+    function likePost(postId) {
+      if (!db || !currentUser) return;
+      const tx = db.transaction("posts", "readwrite");
+      const store = tx.objectStore("posts");
+      store.get(postId).onsuccess = (e) => {
+        const post = e.target.result;
+        if (!post.likes.includes(currentUser.username)) {
+          post.likes.push(currentUser.username);
+          store.put(post);
+          
+          let alerts = JSON.parse(localStorage.getItem('vp_alerts_' + post.author) || '[]');
+          alerts.unshift({ user: currentUser.username, action: 'liked your post', time: new Date().toLocaleTimeString() });
+          localStorage.setItem('vp_alerts_' + post.author, JSON.stringify(alerts));
+        }
+        tx.oncomplete = () => renderFeed();
+      };
+    }
+
+    function addComment(postId) {
+      if (!db || !currentUser) return;
+      const input = document.getElementById(`input-${postId}`);
+      const val = input.value.trim();
+      if (!val) return;
+
+      const tx = db.transaction("posts", "readwrite");
+      const store = tx.objectStore("posts");
+      store.get(postId).onsuccess = (e) => {
+        const post = e.target.result;
+        post.comments.push({ user: currentUser.username, text: val });
+        store.put(post);
+        tx.oncomplete = () => renderFeed();
+      };
+    }
+
+    /* Live Stream Camera Studio */
+    async function toggleCamera() {
+      const videoElem = document.getElementById('live-video');
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+        videoElem.srcObject = null;
+      } else {
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          videoElem.srcObject = cameraStream;
+        } catch (err) {
+          alert("Unable to access camera/microphone: " + err.message);
+        }
+      }
+    }
+
+    function playLiveAudio(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const player = document.getElementById('live-audio-player');
+        player.src = URL.createObjectURL(file);
+        player.play();
+      }
+    }
+
+    /* Explore & Profile Views */
+    function renderExplore() {
+      if (!db) return;
+      const tx = db.transaction("posts", "readonly");
+      tx.objectStore("posts").getAll().onsuccess = (e) => {
+        const grid = document.getElementById('explore-grid');
+        grid.innerHTML = '';
+        e.target.result.forEach(post => {
+          const item = document.createElement('div');
+          item.className = 'grid-item';
+          item.innerHTML = post.type === 'video' 
+            ? `<video src="${post.media}"></video>` 
+            : `<img src="${post.media}">`;
+          grid.appendChild(item);
+        });
+      };
+    }
+
+    function updateProfileView() {
+      if (!currentUser) return;
+      checkVerificationStatus();
+      
+      document.getElementById('p-avatar').src = currentUser.avatar || 'https://via.placeholder.com/150';
+      document.getElementById('p-username').innerHTML = `${currentUser.username} <span id="p-badge">${currentUser.verified ? '<span class="verified-badge">✔</span>' : ''}</span>`;
+      document.getElementById('p-bio').innerText = currentUser.bio || '';
+      document.getElementById('p-followers').innerText = currentUser.followers || 0;
+
+      if (!db) return;
+
+      const tx = db.transaction("posts", "readonly");
+      tx.objectStore("posts").getAll().onsuccess = (e) => {
+        const myPosts = e.target.result.filter(p => p.author === currentUser.username);
+        document.getElementById('p-post-count').innerText = myPosts.length;
+        const grid = document.getElementById('profile-grid');
+        grid.innerHTML = '';
+        myPosts.forEach(post => {
+          const item = document.createElement('div');
+          item.className = 'grid-item';
+          item.innerHTML = post.type === 'video' 
+            ? `<video src="${post.media}"></video>` 
+            : `<img src="${post.media}">`;
+          grid.appendChild(item);
+        });
+      };
+    }
+
+    function renderNotifications() {
+      if (!currentUser) return;
+      const list = document.getElementById('notifications-list');
+      let alerts = JSON.parse(localStorage.getItem('vp_alerts_' + currentUser.username) || '[]');
+      list.innerHTML = alerts.length === 0 ? '<p style="color:var(--text-sub)">No notifications yet.</p>' : '';
+      alerts.forEach(a => {
+        const item = document.createElement('div');
+        item.style.padding = '8px 0';
+        item.style.borderBottom = '1px solid var(--border)';
+        item.innerHTML = `<strong>${a.user}</strong> ${a.action} <span style="font-size:0.75rem; color:var(--text-sub); float:right;">${a.time}</span>`;
+        list.appendChild(item);
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', checkForSuccessfulPayment);
+  </script>
+</body>
+</html>
