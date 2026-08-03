@@ -61,7 +61,9 @@
 
     /* Profile View */
     .profile-header { text-align: center; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .profile-avatar { width: 80px; height: 80px; border-radius: 50%; margin-bottom: 10px; object-fit: cover; border: 2px solid var(--accent); }
+    .profile-avatar-container { position: relative; display: inline-block; }
+    .profile-avatar { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent); }
+    .edit-avatar-btn { position: absolute; bottom: 4px; right: -4px; background: #222226; border: 1px solid var(--border); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.75rem; }
     .profile-stats { display: flex; justify-content: center; gap: 24px; margin: 12px 0; font-size: 0.9rem; }
 
     /* Live Stream View */
@@ -142,8 +144,13 @@
 
     <div id="profile-view" class="view">
       <div class="profile-header">
-        <img id="p-avatar" class="profile-avatar" src="" alt="Avatar">
-        <h2 id="p-username">Username <span id="p-badge"></span></h2>
+        <div class="profile-avatar-container">
+          <img id="p-avatar" class="profile-avatar" src="" alt="Avatar">
+          <label for="p-avatar-input" class="edit-avatar-btn" title="Upload New Profile Picture">✏️</label>
+          <input type="file" id="p-avatar-input" accept="image/*" style="display: none;" onchange="updateProfilePicture(event)">
+        </div>
+
+        <h2 id="p-username" style="margin-top: 8px;">Username <span id="p-badge"></span></h2>
         <p id="p-bio" style="color: var(--text-sub); font-size: 0.9rem; margin-top: 4px;"></p>
         
         <div class="profile-stats">
@@ -174,10 +181,10 @@
     let cameraStream = null;
     let db = null;
 
-    // Paste your actual Stripe Payment Link here when ready:
-    const STRIPE_LINK = "https://buy.stripe.com/14A28r5HM16EcSx47L38400;
+    // Official Stripe Link Configured
+    const STRIPE_LINK = "https://buy.stripe.com/14A28r5HM16EcSx47L38400";
 
-    // IndexedDB Setup with Safe Initialization
+    // IndexedDB Setup for Unlimited Local Storage
     const dbReq = indexedDB.open("VibePulseDB", 1);
     dbReq.onupgradeneeded = (e) => {
       let database = e.target.result;
@@ -268,6 +275,25 @@
       checkForSuccessfulPayment();
     }
 
+    /* Change/Upload Profile Picture from Profile Tab */
+    function updateProfilePicture(event) {
+      const file = event.target.files[0];
+      if (!file || !currentUser) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        currentUser.avatar = e.target.result;
+        
+        let users = JSON.parse(localStorage.getItem('vp_users') || '{}');
+        users[currentUser.username] = currentUser;
+        localStorage.setItem('vp_users', JSON.stringify(users));
+        
+        updateProfileView();
+        alert("Profile picture updated successfully!");
+      };
+      reader.readAsDataURL(file);
+    }
+
     /* Verification System Logic */
     function checkVerificationStatus() {
       if (!currentUser) return;
@@ -283,17 +309,7 @@
 
     function buyVerification() {
       if (!currentUser) return alert("Please log in first!");
-      
-      if (STRIPE_LINK.includes("YOUR_STRIPE_LINK_HERE")) {
-        if (confirm("Simulate $2.00 Verification Purchase?")) {
-          currentUser.verified = true;
-          checkVerificationStatus();
-          updateProfileView();
-          alert("Verification Badge Unlocked!");
-        }
-      } else {
-        window.location.href = STRIPE_LINK;
-      }
+      window.location.href = STRIPE_LINK;
     }
 
     function checkForSuccessfulPayment() {
@@ -399,7 +415,7 @@
           card.innerHTML = `
             <div class="post-header">
               <div class="post-user">
-                <img src="${post.authorAvatar}" class="avatar">
+                <img src="${post.authorAvatar || 'https://via.placeholder.com/150'}" class="avatar">
                 <div>
                   <strong>${post.author}</strong>
                   ${post.authorVerified ? '<span class="verified-badge">✔</span>' : ''}
@@ -555,3 +571,4 @@
   </script>
 </body>
 </html>
+
